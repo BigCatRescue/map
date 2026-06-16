@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BCR Wild Cat Conservation Map</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#020c1a;
+  --surface:#081828;
+  --surface2:#0d2035;
+  --border:#1a3550;
+  --accent:#f4900c;
+  --accent2:#27ae60;
+  --text:#e2eaf4;
+  --text2:#8faec8;
+  --text3:#4a6a88;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;overflow:hidden}
+
+/* STARS BACKGROUND */
+#stars{position:fixed;inset:0;pointer-events:none;z-index:0}
+.star{position:absolute;background:#fff;border-radius:50%;animation:twinkle linear infinite}
+@keyframes twinkle{0%,100%{opacity:.8}50%{opacity:.1}}
+
+/* HEADER */
+#header{position:fixed;top:0;left:0;right:0;height:64px;background:linear-gradient(180deg,rgba(2,12,26,.98) 0%,rgba(2,12,26,.7) 100%);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:20px;z-index:100;backdrop-filter:blur(12px)}
+#logo-area{display:flex;align-items:center;gap:12px;min-width:240px}
+#logo-paw{font-size:28px;color:var(--accent)}
+#logo-text{line-height:1}
+#logo-text .brand{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--text);letter-spacing:.5px}
+#logo-text .sub{font-size:10px;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+#stats-bar{display:flex;gap:32px;flex:1;justify-content:center}
+.stat-item{text-align:center;line-height:1}
+.stat-num{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent)}
+.stat-label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+#header-actions{display:flex;gap:8px;align-items:center}
+.btn-toggle{background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-size:12px;padding:6px 14px;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:.5px;transition:all .2s}
+.btn-toggle:hover,.btn-toggle.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* MAP */
+#map{position:fixed;inset:0;z-index:1}
+
+/* LEGEND PANEL */
+#legend{position:fixed;top:64px;left:0;bottom:0;width:240px;background:rgba(8,24,40,.95);border-right:1px solid var(--border);z-index:50;overflow-y:auto;transition:transform .3s ease;backdrop-filter:blur(12px)}
+#legend.hidden{transform:translateX(-100%)}
+#legend-header{padding:16px 16px 12px;border-bottom:1px solid var(--border)}
+#legend-header h3{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);letter-spacing:1px;text-transform:uppercase}
+#legend-header p{font-size:11px;color:var(--text3);margin-top:4px}
+#all-projects-btn{display:flex;align-items:center;gap:6px;width:100%;margin-top:10px;padding:8px 10px;background:rgba(244,144,12,.1);border:1px solid rgba(244,144,12,.3);border-radius:8px;color:var(--accent);font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s;text-align:left}
+#all-projects-btn:hover{background:rgba(244,144,12,.2);border-color:var(--accent)}
+.legend-search{margin:8px 12px 4px;position:relative}
+.legend-search input{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none}
+.legend-search input::placeholder{color:var(--text3)}
+.legend-items{padding:4px 0}
+.legend-item{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;transition:background .15s;border-left:2px solid transparent}
+.legend-item:hover{background:rgba(244,144,12,.08);border-left-color:var(--accent)}
+.legend-item.active{background:rgba(244,144,12,.12);border-left-color:var(--accent)}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.legend-label{font-size:12px;color:var(--text2);flex:1;text-transform:capitalize}
+.legend-count{font-family:'Space Mono',monospace;font-size:10px;color:var(--text3)}
+.legend-section{padding:8px 14px 4px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;border-top:1px solid var(--border);margin-top:4px}
+
+/* DETAIL PANEL */
+#detail{position:fixed;top:64px;right:0;bottom:0;width:360px;background:rgba(8,24,40,.97);border-left:1px solid var(--border);z-index:50;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;backdrop-filter:blur(16px)}
+#detail.open{transform:translateX(0)}
+#detail-close{position:sticky;top:0;z-index:10;background:rgba(8,24,40,.9);padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;backdrop-filter:blur(8px)}
+#detail-close h4{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase}
+#detail-close button{background:none;border:1px solid var(--border);color:var(--text2);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+#detail-close button:hover{border-color:var(--accent);color:var(--accent)}
+#detail-photo{width:100%;height:180px;object-fit:cover;background:var(--surface2);display:block}
+.detail-photo-placeholder{width:100%;height:180px;background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%);display:flex;align-items:center;justify-content:center;font-size:48px}
+#detail-body{padding:16px}
+#detail-category{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+#detail-name{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:8px}
+#detail-meta{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.meta-row{display:flex;align-items:flex-start;gap:8px;font-size:12px}
+.meta-icon{font-size:14px;margin-top:1px}
+.meta-label{color:var(--text3);min-width:52px}
+.meta-val{color:var(--text2);flex:1}
+#detail-donated{background:linear-gradient(135deg,rgba(244,144,12,.12) 0%,rgba(39,174,96,.08) 100%);border:1px solid rgba(244,144,12,.25);border-radius:10px;padding:12px 14px;margin-bottom:14px}
+.donated-amount{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--accent)}
+.donated-label{font-size:11px;color:var(--text3);margin-top:2px}
+.donated-years{font-size:11px;color:var(--text2);margin-top:4px}
+#detail-desc{font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:14px;border-left:2px solid var(--border);padding-left:12px}
+#detail-org{font-size:12px;color:var(--text3);margin-bottom:14px}
+#detail-org span{color:var(--text2)}
+#detail-link a{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:8px 14px;border-radius:8px;font-size:12px;text-decoration:none;transition:all .2s}
+#detail-link a:hover{border-color:var(--accent);color:var(--accent)}
+.yt-thumb{position:relative;display:block;border-radius:10px;overflow:hidden;border:1px solid var(--border);cursor:pointer;text-decoration:none}
+.yt-thumb img{width:100%;display:block;aspect-ratio:16/9;object-fit:cover}
+.yt-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);transition:background .2s}
+.yt-thumb:hover .yt-play{background:rgba(0,0,0,.5)}
+.yt-play-icon{width:56px;height:56px;background:#ff0000;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+.yt-play-icon::after{content:'';border-style:solid;border-width:10px 0 10px 20px;border-color:transparent transparent transparent #fff;margin-left:4px}
+.yt-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+
+/* GLOBE TOGGLE */
+#view-toggle{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:60;display:flex;background:rgba(8,24,40,.9);border:1px solid var(--border);border-radius:24px;overflow:hidden;backdrop-filter:blur(12px)}
+.view-btn{padding:8px 20px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;color:var(--text2);background:none;border:none;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px}
+.view-btn.active{background:var(--accent);color:#fff}
+
+/* SCROLL */
+#legend::-webkit-scrollbar,#detail::-webkit-scrollbar{width:5px}
+#legend::-webkit-scrollbar-track,#detail::-webkit-scrollbar-track{background:transparent}
+#legend::-webkit-scrollbar-thumb,#detail::-webkit-scrollbar-thumb{background:var(--text3);border-radius:3px}
+#detail::-webkit-scrollbar-thumb{background:rgba(244,144,12,.35)}
+
+/* MAPLIBRE OVERRIDES */
+.maplibregl-popup{max-width:220px}
+.maplibregl-popup-content{background:rgba(8,24,40,.95);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px;font-family:'DM Sans',sans-serif;backdrop-filter:blur(12px)}
+.maplibregl-popup-tip{display:none}
+.maplibregl-popup-close-button{color:var(--text2);font-size:16px;top:6px;right:8px}
+.popup-name{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--text);margin-bottom:4px;line-height:1.3}
+.popup-cat{font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.popup-loc{font-size:11px;color:var(--text2)}
+.maplibregl-ctrl-bottom-right,.maplibregl-ctrl-bottom-left{display:none}
+.maplibregl-ctrl-top-right{margin-top:76px;margin-right:8px}
+.maplibregl-ctrl-zoom button{background:var(--surface2)!important;border:1px solid var(--border)!important;color:var(--text2)!important;border-radius:8px!important}
+
+/* SEARCH BOX */
+#search-box{position:fixed;top:76px;left:250px;z-index:60;display:flex;align-items:center;gap:8px}
+#search-input{background:rgba(8,24,40,.9);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:20px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;width:220px;backdrop-filter:blur(12px)}
+#search-input::placeholder{color:var(--text3)}
+#search-input:focus{border-color:var(--accent)}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;transition:opacity .5s}
+#loading.fade{opacity:0;pointer-events:none}
+.loading-paw{font-size:56px;animation:pulse 1.2s ease-in-out infinite}
+.loading-text{font-family:'Syne',sans-serif;font-size:16px;color:var(--text2);margin-top:16px;letter-spacing:1px}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.7}}
+
+@media (max-width:768px){
+  #legend{display:none}
+  #detail{width:100%;top:auto;bottom:0;height:70%;transform:translateY(100%)}
+  #detail.open{transform:translateY(0)}
+  #stats-bar .stat-item:nth-child(3){display:none}
+  #search-box{display:none}
+}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="loading-paw">🐾</div>
+  <div class="loading-text">Loading Wild Cat Conservation Map…</div>
+</div>
+
+<canvas id="stars"></canvas>
+
+<!-- HEADER -->
+<div id="header">
+  <div id="logo-area">
+    <div id="logo-paw">🐆</div>
+    <div id="logo-text">
+      <div class="brand">Big Cat Rescue</div>
+      <div class="sub">Wild Cat Conservation Map</div>
+    </div>
+  </div>
+  <div id="stats-bar">
+    <div class="stat-item"><div class="stat-num" id="stat-projects">146</div><div class="stat-label">Projects</div></div>
+    <div class="stat-item"><div class="stat-num" id="stat-donated">$1.56M</div><div class="stat-label">Donated</div></div>
+    <div class="stat-item"><div class="stat-num" id="stat-countries">42</div><div class="stat-label">Countries</div></div>
+    <div class="stat-item"><div class="stat-num" id="stat-species">34</div><div class="stat-label">Species</div></div>
+  </div>
+  <div id="header-actions">
+    <button class="btn-toggle active" id="btn-legend" onclick="toggleLegend()">🦁 Legend</button>
+    <button class="btn-toggle" id="btn-all" onclick="filterAll()">All Species</button>
+  </div>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- SEARCH -->
+<div id="search-box">
+  <input type="text" id="search-input" placeholder="🔍  Search projects…" oninput="filterSearch(this.value)">
+</div>
+
+<!-- LEGEND PANEL -->
+<div id="legend">
+  <div id="legend-header">
+    <h3>Species</h3>
+    <p>Click to filter by species</p>
+    <button id="all-projects-btn" onclick="filterAll()">🌍 All Projects (146)</button>
+  </div>
+  <div class="legend-items" id="legend-items"></div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div id="detail">
+  <div id="detail-close">
+    <h4>Project Details</h4>
+    <button onclick="closeDetail()">✕</button>
+  </div>
+  <img id="detail-photo" src="" alt="" onerror="this.style.display='none';document.getElementById('detail-photo-ph').style.display='flex'">
+  <div class="detail-photo-placeholder" id="detail-photo-ph" style="display:none">🐆</div>
+  <div id="detail-body">
+    <div id="detail-category"></div>
+    <div id="detail-name"></div>
+    <div id="detail-donated">
+      <div class="donated-amount" id="donated-amount"></div>
+      <div class="donated-label">Total Donated by Big Cat Rescue</div>
+      <div class="donated-years" id="donated-years"></div>
+    </div>
+    <div id="detail-meta"></div>
+    <div id="detail-desc"></div>
+    <div id="detail-org"></div>
+    <div id="detail-link"></div>
+    <div id="detail-youtube" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<!-- VIEW TOGGLE -->
+<div id="view-toggle">
+  <button class="view-btn active" id="btn-globe" onclick="setView('globe')">🌍 Globe</button>
+  <button class="view-btn" id="btn-map" onclick="setView('mercator')">🗺 Map</button>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+
+// ============================================================
+//  PASTE YOUR GOOGLE SHEETS CSV URL BELOW (the only line
+//  you ever need to change when you update your sheet)
+// ============================================================
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRtNqLngNUM8xeUZMq22t16eHz-tvK-ei9bj8QnYjqNHhdtfGSLGLr6lojgjjdoMalPdkLJ04SR4uep/pub?output=csv';
+// ============================================================
+
+// Rewrites ZeeMaps image URLs to your GitHub-hosted copies.
+// Once your images/ folder is uploaded to GitHub, photos load
+// from your own account and no longer depend on ZeeMaps.
+const GITHUB_IMAGES = 'https://bigcatrescue.github.io/map/';
+function resolvePhoto(url) {
+  if (!url) return '';
+  if (url.startsWith('//')) url = 'https:' + url;
+  if (url.includes('zeemapsimages.s3.amazonaws.com')) {
+    return GITHUB_IMAGES + url.split('/').pop();
+  }
+  return url;
+}
+
+const CAT_COLORS = {
+  'LION':'#F4A200','TIGER':'#FF5722','LEOPARD':'#C8860A','JAGUAR':'#00BFA5',
+  'COUGAR':'#A0522D','CHEETAH':'#FFD700','SNOW LEOPARD':'#64B5F6',
+  'CLOUDED LEOPARD':'#AB47BC','AMUR LEOPARD':'#FDD835','FISHING CAT':'#26C6DA',
+  'OCELOT':'#FF4081','MARGAY':'#FF8F00','BOBCAT':'#66BB6A','JAGUARUNDI':'#26A69A',
+  'CARACAL':'#FF7043','SAND CAT':'#BCAAA4','BLACK FOOTED CAT':'#CE93D8',
+  'FLAT HEADED CAT':'#00ACC1','PALLAS CAT':'#78909C','ANDEAN CAT':'#42A5F5',
+  'GUIGNA':'#EF5350','PAMPAS CAT':'#D4E157','ONCILLA':'#FFAB40','TIGER CAT':'#FFA726',
+  'RUSTY SPOTTED CAT':'#EC407A','MARBLED CATS':'#7E57C2','AFRICAN GOLDEN CAT':'#FFC107',
+  'GOLDEN CAT':'#FFCA28','IBERIAN LYNX':'#26C6DA','CANADA LYNX':'#29B6F6',
+  'JUNGLE CAT':'#9CCC65','SMALL CATS':'#9575CD','RANGERS':'#78909C',
+  'GEOFFREY CAT':'#FFA000','DEFAULT':'#64B5F6'
+};
+function catColor(cat){return CAT_COLORS[cat]||CAT_COLORS['DEFAULT']}
+
+// Geocoding tables — add new countries/cities here as needed
+const COUNTRY_COORDS = {
+  'Kenya':[-1.2921,36.8219],'South Africa':[-30.5595,22.9375],'Tanzania':[-6.369,34.8888],
+  'United States':[37.0902,-95.7129],'India':[20.5937,78.9629],'Nepal':[28.3949,84.124],
+  'Indonesia':[-0.7893,113.9213],'Malaysia':[4.2105,101.9758],'Russia':[61.524,105.3188],
+  'China':[35.8617,104.1954],'Brazil':[-14.235,-51.9253],'Mexico':[23.6345,-102.5528],
+  'Chile':[-35.6751,-71.543],'Peru':[-9.19,-75.0152],'Argentina':[-38.4161,-63.6167],
+  'Belize':[17.1899,-88.4976],'Costa Rica':[9.7489,-83.7534],'Uganda':[1.3733,32.2903],
+  'Mongolia':[46.8625,103.8467],'Thailand':[15.87,100.9925],'Cambodia':[12.5657,104.991],
+  'Sri Lanka':[7.8731,80.7718],'Morocco':[31.7917,-7.0926],'Spain':[40.4637,-3.7492],
+  'Australia':[-25.2744,133.7751],'Ecuador':[-1.8312,-78.1834],'United Kingdom':[55.3781,-3.436],
+  'Cameroon':[7.3697,12.3547],'Trinidad and Tobago':[10.6918,-61.2225],'Armenia':[40.0691,45.0382],
+  'Congo, Democratic Republic Of The':[-4.0383,21.7587],'Nicaragua':[12.8654,-85.2072],
+  'Paraguay':[-23.4425,-58.4438],'Burma':[21.9162,95.956],'Bolivia':[-16.2902,-63.5887],
+  'Iran':[32.4279,53.688],'Bhutan':[27.5142,90.4336],'Zambia':[-13.1339,27.8493],
+  'Mozambique':[-18.6657,35.5296],'South Sudan':[6.877,31.307],'Uruguay':[-32.5228,-55.7658],
+  'El Salvador':[13.7942,-88.8965]
+};
+const CITY_COORDS = {
+  'Santa Cruz':[36.9741,-122.0308],'San Francisco':[37.7749,-122.4194],
+  'Cape Town':[-33.9249,18.4241],'Kilosa':[-6.8333,36.9833],
+  'Johannesburg':[-26.2041,28.0473],'Tucson':[32.2226,-110.9747],'Tsavo':[-2.9833,38.4667]
+};
+
+// Seeded jitter so markers stay in the same spot on every reload
+function seededRand(seed){let x=Math.sin(seed+1)*10000;return x-Math.floor(x);}
+function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=Math.imul(31,h)+s.charCodeAt(i)|0;}return Math.abs(h);}
+
+function cleanText(s){
+  if(!s)return '';
+  return s.replace(/_x000D_/g,' ').replace(/\s+/g,' ').trim();
+}
+
+function processRows(rows){
+  const out=[];
+  rows.forEach(row=>{
+    const name=cleanText(row['Name']||'');
+    const country=(row['Country']||'').trim();
+    const city=(row['City']||'').trim();
+    if(!name||!country)return;
+
+    let coords=null;
+    if(city&&CITY_COORDS[city]) coords=CITY_COORDS[city];
+    else if(COUNTRY_COORDS[country]) coords=COUNTRY_COORDS[country];
+    if(!coords)return; // skip if no geocode
+
+    const seed=hashStr(name);
+    const lat=coords[0]+(seededRand(seed)*6-3);
+    const lng=coords[1]+(seededRand(seed+1)*6-3);
+
+    const donated=parseFloat((row['Donated']||'').toString().replace(/[^0-9.]/g,''))||0;
+
+
+    out.push({
+      name,
+      country,
+      city,
+      state:(row['State']||'').trim(),
+      category:(row['Category']||'').trim().toUpperCase(),
+      description:cleanText(row['Description']||''),
+      donated,
+      years:cleanText(row['Years']||''),
+      website:(row['Website']||'').trim(),
+      organization:cleanText(row['Organization']||''),
+      photo: resolvePhoto(row['Photo URL'] || ''),
+      youtube:(row['YouTube']||'').trim(),
+      lat:Math.round(lat*10000)/10000,
+      lng:Math.round(lng*10000)/10000
+    });
+  });
+  return out;
+}
+
+// Global state
+let PROJECTS=[];
+let geojson={type:'FeatureCollection',features:[]};
+let map=null;
+let currentFilter=null;
+let popup=null;
+let rotating=true;
+let rotateInterval=null;
+
+// Stars background
+(function(){
+  for(let i=0;i<220;i++){
+    const el=document.createElement('div');
+    el.className='star';
+    el.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;width:${Math.random()*2.4+.4}px;height:${Math.random()*2.4+.4}px;opacity:${Math.random()*.7+.3};animation-duration:${Math.random()*4+2}s;animation-delay:${Math.random()*3}s`;
+    document.body.appendChild(el);
+  }
+})();
+
+// ── LOAD DATA FROM GOOGLE SHEETS ──────────────────────────
+async function loadData(){
+  const loadingEl=document.getElementById('loading');
+  const loadingText=loadingEl.querySelector('.loading-text');
+
+  if(SHEET_CSV_URL==='PASTE_YOUR_GOOGLE_SHEETS_CSV_URL_HERE'){
+    loadingText.textContent='⚠️ No Google Sheet URL set — see instructions in the HTML file.';
+    return;
+  }
+
+  loadingText.textContent='Fetching project data…';
+  try{
+    const res=await fetch(SHEET_CSV_URL);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const csv=await res.text();
+    loadingText.textContent='Building map…';
+
+    Papa.parse(csv,{
+      header:true,
+      skipEmptyLines:true,
+      complete(results){
+        PROJECTS=processRows(results.data);
+        geojson={
+          type:'FeatureCollection',
+          features:PROJECTS.map((p,i)=>({
+            type:'Feature',id:i,
+            geometry:{type:'Point',coordinates:[p.lng,p.lat]},
+            properties:{...p,id:i}
+          }))
+        };
+        updateStats();
+        initMap();
+      },
+      error(err){throw err;}
+    });
+  }catch(e){
+    loadingText.innerHTML=`❌ Could not load project data.<br><small>${e.message}</small><br><small>Check that your Google Sheet is published as CSV and the URL is correct.</small>`;
+    console.error(e);
+  }
+}
+
+function updateStats(){
+  const total=PROJECTS.reduce((s,p)=>s+p.donated,0);
+  const countries=new Set(PROJECTS.map(p=>p.country)).size;
+  const species=new Set(PROJECTS.map(p=>p.category)).size;
+  document.getElementById('stat-projects').textContent=PROJECTS.length;
+  document.getElementById('stat-donated').textContent='$'+formatMoney(total);
+  document.getElementById('stat-countries').textContent=countries;
+  document.getElementById('stat-species').textContent=species;
+  document.getElementById('all-projects-btn').textContent=`🌍 All Projects (${PROJECTS.length})`;
+}
+
+// ── MAP INITIALISATION ────────────────────────────────────
+function initMap(){
+  map=new maplibregl.Map({
+    container:'map',
+    style:'https://tiles.openfreemap.org/styles/dark',
+    center:[20,15],zoom:1.2,minZoom:0.5,maxZoom:16,
+    attributionControl:false,
+    projection:'globe'
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
+  map.on('mousedown',()=>{rotating=false;if(rotateInterval)clearInterval(rotateInterval)});
+  map.on('touchstart',()=>{rotating=false;if(rotateInterval)clearInterval(rotateInterval)});
+
+  // style.load fires after style JSON is applied, overriding any mercator projection in the OpenFreeMap style
+  map.on('style.load',()=>{
+    try{map.setProjection('globe');}catch(e){}
+    try{map.setFog({'color':'rgba(8,24,50,0.6)','high-color':'rgba(2,10,30,0.9)','horizon-blend':0.06,'space-color':'rgba(0,3,12,1)','star-intensity':0.4});}catch(e){}
+  });
+
+  map.on('load',()=>{
+    try{map.setProjection('globe');}catch(e){console.warn('Globe projection:',e);}
+    map.addSource('projects',{type:'geojson',data:geojson,cluster:true,clusterMaxZoom:6,clusterRadius:40});
+
+    const colorExpr=['match',['get','category']];
+    Object.entries(CAT_COLORS).forEach(([k,v])=>{if(k!=='DEFAULT'){colorExpr.push(k);colorExpr.push(v);}});
+    colorExpr.push(CAT_COLORS.DEFAULT);
+
+    map.addLayer({id:'clusters',type:'circle',source:'projects',filter:['has','point_count'],paint:{
+      'circle-color':['step',['get','point_count'],'#37547a',5,'#F4A200',10,'#FF5722'],
+      'circle-radius':['step',['get','point_count'],18,5,24,10,30],
+      'circle-stroke-width':2,'circle-stroke-color':'rgba(255,255,255,.25)','circle-opacity':.9
+    }});
+    map.addLayer({id:'cluster-count',type:'symbol',source:'projects',filter:['has','point_count'],
+      layout:{'text-field':['get','point_count_abbreviated'],'text-font':['Noto Sans Regular'],'text-size':12},
+      paint:{'text-color':'#fff'}
+    });
+    map.addLayer({id:'points',type:'circle',source:'projects',filter:['!',['has','point_count']],paint:{
+      'circle-color':colorExpr,'circle-radius':7,
+      'circle-stroke-width':1.5,'circle-stroke-color':'rgba(255,255,255,.35)','circle-opacity':.9
+    }});
+
+    buildLegend();
+    setTimeout(()=>{
+      if(rotating){
+        rotateInterval=setInterval(()=>{
+          if(!map.isMoving()){const c=map.getCenter();map.easeTo({center:[c.lng+0.3,c.lat],duration:50,easing:t=>t});}
+        },50);
+      }
+    },800);
+    setTimeout(()=>{document.getElementById('loading').classList.add('fade');},600);
+  });
+
+  map.on('click','clusters',e=>{
+    const f=map.queryRenderedFeatures(e.point,{layers:['clusters']})[0];
+    map.getSource('projects').getClusterExpansionZoom(f.properties.cluster_id,(err,zoom)=>{
+      if(err)return; map.easeTo({center:f.geometry.coordinates,zoom});
+    });
+  });
+  map.on('click','points',e=>{
+    if(!e.features.length)return;
+    const props=e.features[0].properties;
+    showDetail(props);
+    map.flyTo({center:e.features[0].geometry.coordinates,zoom:Math.max(map.getZoom(),4),duration:600});
+    if(popup)popup.remove();
+    popup=new maplibregl.Popup({offset:12,closeButton:false})
+      .setLngLat(e.features[0].geometry.coordinates)
+      .setHTML(`<div class="popup-name">${props.name}</div><div class="popup-cat" style="color:${catColor(props.category)}">${props.category}</div><div class="popup-loc">📍 ${props.country}</div>`)
+      .addTo(map);
+  });
+  map.on('mouseenter','points',()=>map.getCanvas().style.cursor='pointer');
+  map.on('mouseleave','points',()=>map.getCanvas().style.cursor='');
+  map.on('mouseenter','clusters',()=>map.getCanvas().style.cursor='pointer');
+  map.on('mouseleave','clusters',()=>map.getCanvas().style.cursor='');
+}
+
+// ── UI FUNCTIONS ──────────────────────────────────────────
+function showDetail(p){
+  const ph=document.getElementById('detail-photo'),phph=document.getElementById('detail-photo-ph');
+  if(p.photo&&p.photo.length>5){ph.src=p.photo;ph.style.display='block';phph.style.display='none';}
+  else{ph.style.display='none';phph.style.display='flex';}
+  const color=catColor(p.category);
+  document.getElementById('detail-category').innerHTML=`<span style="background:${color}22;color:${color};border:1px solid ${color}44;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">🐾 ${p.category}</span>`;
+  document.getElementById('detail-name').textContent=p.name;
+  document.getElementById('donated-amount').textContent='$'+Number(p.donated).toLocaleString();
+  document.getElementById('donated-years').textContent=p.years?'Funded: '+p.years:'';
+  const loc=[p.city,p.state,p.country].filter(Boolean).join(', ');
+  document.getElementById('detail-meta').innerHTML=`
+    <div class="meta-row"><span class="meta-icon">📍</span><span class="meta-val">${loc||p.country}</span></div>
+    ${p.organization?`<div class="meta-row"><span class="meta-icon">🏢</span><span class="meta-val">${p.organization}</span></div>`:''}`;
+  document.getElementById('detail-desc').textContent=p.description||'';
+  document.getElementById('detail-org').innerHTML=p.organization?`<span style="color:var(--text3)">Organization: </span><span>${p.organization}</span>`:'';
+  document.getElementById('detail-link').innerHTML=p.website&&p.website.length>3?`<a href="${p.website}" target="_blank" rel="noopener">🔗 Visit Project Website ↗</a>`:'';
+  const ytDiv=document.getElementById('detail-youtube');
+  if(p.youtube&&p.youtube.length>3){
+    ytDiv.innerHTML=`<div class="yt-label">▶ Project Video</div><a class="yt-thumb" href="https://www.youtube.com/watch?v=${p.youtube}" target="_blank" rel="noopener"><img src="https://img.youtube.com/vi/${p.youtube}/hqdefault.jpg" alt="Project video thumbnail"><div class="yt-play"><div class="yt-play-icon"></div></div></a>`;
+  }else{ytDiv.innerHTML='';}
+  document.getElementById('detail').classList.add('open');
+}
+
+function closeDetail(){document.getElementById('detail').classList.remove('open');if(popup)popup.remove();}
+
+function buildLegend(){
+  const counts={};
+  PROJECTS.forEach(p=>{counts[p.category]=(counts[p.category]||0)+1;});
+  const sorted=Object.entries(counts).sort((a,b)=>{
+    if(a[0]==='RANGERS')return 1; if(b[0]==='RANGERS')return -1;
+    return a[0].localeCompare(b[0]);
+  });
+  const container=document.getElementById('legend-items');
+  container.innerHTML='';
+  sorted.forEach(([cat,count])=>{
+    if(cat==='RANGERS'){const sep=document.createElement('div');sep.className='legend-section';sep.textContent='Support';container.appendChild(sep);}
+    const color=catColor(cat);
+    const el=document.createElement('div');
+    el.className='legend-item';el.dataset.cat=cat;
+    el.innerHTML=`<div class="legend-dot" style="background:${color}"></div><span class="legend-label">${cat.toLowerCase()}</span><span class="legend-count">${count}</span>`;
+    el.onclick=()=>filterByCategory(cat,el);
+    container.appendChild(el);
+  });
+}
+
+function filterByCategory(cat,el){
+  if(currentFilter===cat){filterAll();return;}
+  currentFilter=cat;
+  document.querySelectorAll('.legend-item').forEach(i=>i.classList.remove('active'));
+  if(el)el.classList.add('active');
+  document.getElementById('btn-all').classList.add('active');
+  document.getElementById('btn-all').textContent='✕ '+cat;
+  document.getElementById('all-projects-btn').style.opacity='0.45';
+  document.getElementById('all-projects-btn').style.fontWeight='400';
+  const filtered={type:'FeatureCollection',features:geojson.features.filter(f=>f.properties.category===cat)};
+  map.getSource('projects').setData(filtered);
+  const n=filtered.features.length;
+  const tot=filtered.features.reduce((s,f)=>s+f.properties.donated,0);
+  document.getElementById('stat-projects').textContent=n;
+  document.getElementById('stat-donated').textContent='$'+formatMoney(tot);
+}
+
+function filterAll(){
+  currentFilter=null;
+  document.querySelectorAll('.legend-item').forEach(i=>i.classList.remove('active'));
+  document.getElementById('btn-all').classList.remove('active');
+  document.getElementById('btn-all').textContent='All Species';
+  document.getElementById('all-projects-btn').style.opacity='1';
+  document.getElementById('all-projects-btn').style.fontWeight='600';
+  map.getSource('projects').setData(geojson);
+  updateStats();
+}
+
+function filterSearch(val){
+  if(!val.trim()){filterAll();return;}
+  const q=val.toLowerCase();
+  const filtered={type:'FeatureCollection',features:geojson.features.filter(f=>{
+    const p=f.properties;
+    return p.name.toLowerCase().includes(q)||p.country.toLowerCase().includes(q)||
+           p.category.toLowerCase().includes(q)||(p.organization||'').toLowerCase().includes(q);
+  })};
+  currentFilter='search';
+  map.getSource('projects').setData(filtered);
+  document.getElementById('stat-projects').textContent=filtered.features.length;
+}
+
+function formatMoney(n){
+  if(n>=1000000)return(n/1000000).toFixed(2)+'M';
+  if(n>=1000)return(n/1000).toFixed(0)+'K';
+  return n.toString();
+}
+
+let legendVisible=true;
+function toggleLegend(){
+  legendVisible=!legendVisible;
+  document.getElementById('legend').classList.toggle('hidden',!legendVisible);
+  document.getElementById('btn-legend').classList.toggle('active',legendVisible);
+  document.getElementById('search-box').style.left=legendVisible?'250px':'20px';
+}
+
+let currentView='globe';
+function setView(v){
+  currentView=v;
+  document.getElementById('btn-globe').classList.toggle('active',v==='globe');
+  document.getElementById('btn-map').classList.toggle('active',v==='mercator');
+  try{
+    if(v==='globe'){
+      map.setProjection('globe');
+      try{map.setFog({'color':'rgba(8,24,50,0.6)','high-color':'rgba(2,10,30,0.9)','horizon-blend':0.06,'space-color':'rgba(0,3,12,1)','star-intensity':0.4});}catch(e){}
+    } else {
+      map.setProjection('mercator');
+      try{map.setFog(null);}catch(e){}
+    }
+  }catch(e){}
+  if(v==='globe'){map.setCenter([20,15]);map.setZoom(1.2);}else{map.setCenter([20,15]);map.setZoom(1.5);}
+}
+
+// ── KICK OFF ──────────────────────────────────────────────
+loadData();
+
+</script>
+</body>
+</html>
