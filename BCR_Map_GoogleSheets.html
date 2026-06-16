@@ -417,6 +417,12 @@ function initMap(){
   map.on('mousedown',()=>{rotating=false;if(rotateInterval)clearInterval(rotateInterval)});
   map.on('touchstart',()=>{rotating=false;if(rotateInterval)clearInterval(rotateInterval)});
 
+  // style.load fires after style JSON is applied, overriding any mercator projection in the OpenFreeMap style
+  map.on('style.load',()=>{
+    try{map.setProjection('globe');}catch(e){}
+    try{map.setFog({'color':'rgba(8,24,50,0.6)','high-color':'rgba(2,10,30,0.9)','horizon-blend':0.06,'space-color':'rgba(0,3,12,1)','star-intensity':0.4});}catch(e){}
+  });
+
   map.on('load',()=>{
     try{map.setProjection('globe');}catch(e){console.warn('Globe projection:',e);}
     map.addSource('projects',{type:'geojson',data:geojson,cluster:true,clusterMaxZoom:6,clusterRadius:40});
@@ -579,7 +585,15 @@ function setView(v){
   currentView=v;
   document.getElementById('btn-globe').classList.toggle('active',v==='globe');
   document.getElementById('btn-map').classList.toggle('active',v==='mercator');
-  try{map.setProjection(v==='globe'?'globe':'mercator');}catch(e){}
+  try{
+    if(v==='globe'){
+      map.setProjection('globe');
+      try{map.setFog({'color':'rgba(8,24,50,0.6)','high-color':'rgba(2,10,30,0.9)','horizon-blend':0.06,'space-color':'rgba(0,3,12,1)','star-intensity':0.4});}catch(e){}
+    } else {
+      map.setProjection('mercator');
+      try{map.setFog(null);}catch(e){}
+    }
+  }catch(e){}
   if(v==='globe'){map.setCenter([20,15]);map.setZoom(1.8);}else{map.setZoom(1.5);}
 }
 
